@@ -1,0 +1,82 @@
+#include <iostream>
+#include <cstdlib>
+#include <ctime>
+#include <mpi.h>
+
+void odd_even_sort(int* arr, int n, int rank, int size) {
+    int temp;
+    for (int phase = 0; phase < n; ++phase) {
+        if (phase % 2 == 0) {  
+            if (rank % 2 == 0 && rank + 1 < size) {
+                
+                MPI_Sendrecv(&arr[n / size - 1], 1, MPI_INT, rank + 1, 0,
+                             &temp, 1, MPI_INT, rank + 1, 0,
+                             MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                if (arr[n / size - 1] > temp) {
+                    std::swap(arr[n / size - 1], temp);
+                }
+            }
+        } else {  
+            if (rank % 2 == 1 && rank - 1 >= 0) {
+               
+                MPI_Sendrecv(&arr[0], 1, MPI_INT, rank - 1, 0,
+                             &temp, 1, MPI_INT, rank - 1, 0,
+                             MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                if (arr[0] < temp) {
+                    std::swap(arr[0], temp);
+                }
+            }
+        }
+        MPI_Barrier(MPI_COMM_WORLD); 
+    }
+}
+
+int main(int argc, char* argv[]) {
+    MPI_Init(&argc, &argv);
+
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    const int N = 16;  
+    int local_n = N / size;  
+
+    int* arr = new int[local_n];
+
+    srand(time(NULL) + rank);
+    for (int i = 0; i < local_n; ++i) {
+        arr[i] = rand() % 100;  
+    }
+
+   
+    std::cout << "Process " << rank << " initial array: ";
+    for (int i = 0; i < local_n; ++i) {
+        std::cout << arr[i] << " ";
+    }
+    std::cout << std::endl;
+
+    
+    odd_even_sort(arr, N, rank, size);
+
+    
+    int* sorted_arr = nullptr;
+    if (rank == 0) {
+        sorted_arr = new int[N];
+    }
+    
+    MPI_Gather(arr, local_n, MPI_INT, sorted_arr, local_n, MPI_INT, 0, MPI_COMM_WORLD);
+
+   
+    if (rank == 0) {
+        std::cout << "Sorted array: ";
+        for (int i = 0; i < N; ++i) {
+            std::cout << sorted_arr[i] << " ";
+        }
+        std::cout << std::endl;
+        delete[] sorted_arr;
+    }
+
+    delete[] arr;
+    MPI_Finalize();
+    return 0;
+}
