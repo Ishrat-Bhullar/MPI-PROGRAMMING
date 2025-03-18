@@ -1,0 +1,62 @@
+#include <iostream>
+#include <cmath>
+#include <mpi.h>
+
+bool is_prime(int n) {
+    if (n <= 1) return false;
+    if (n == 2) return true;
+    if (n % 2 == 0) return false;
+    for (int i = 3; i <= sqrt(n); i += 2) {
+        if (n % i == 0) return false;
+    }
+    return true;
+}
+
+int main(int argc, char** argv) {
+    int rank, size;
+    const int max_value = 100;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (rank == 0) {
+        int number = 2;
+        int slaves = size - 1;
+
+        while (number <= max_value) {
+            int source_rank = (number - 2) % slaves + 1;
+            MPI_Send(&number, 1, MPI_INT, source_rank, 0, MPI_COMM_WORLD);
+            MPI_Recv(&number, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+            if (number > 0) {
+                std::cout << "Prime: " << number << std::endl;
+            }
+
+            number++;
+        }
+
+        for (int i = 1; i < size; i++) {
+            int stop_message = 0;
+            MPI_Send(&stop_message, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+        }
+
+    } else {
+        int number_to_test;
+        while (true) {
+            MPI_Recv(&number_to_test, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+            if (number_to_test == 0) break;
+
+            if (is_prime(number_to_test)) {
+                MPI_Send(&number_to_test, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+            } else {
+                int negative_number = -number_to_test;
+                MPI_Send(&negative_number, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+            }
+        }
+    }
+
+    MPI_Finalize();
+    return 0;
+}
