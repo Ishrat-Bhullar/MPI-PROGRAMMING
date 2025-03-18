@@ -1,0 +1,44 @@
+#include <iostream>
+#include <mpi.h>
+
+static long num_steps = 100000;
+double step;
+
+double compute_partial_pi(long start, long end) {
+    double sum = 0.0;
+    double x;
+    for (long i = start; i < end; i++) {
+        x = (i + 0.5) * step;
+        sum += 4.0 / (1.0 + x * x);
+    }
+    return sum;
+}
+
+int main(int argc, char** argv) {
+    int rank, size;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    step = 1.0 / (double)num_steps;
+
+    MPI_Bcast(&num_steps, 1, MPI_LONG, 0, MPI_COMM_WORLD);
+
+    long local_num_steps = num_steps / size;
+    long start = rank * local_num_steps;
+    long end = (rank == size - 1) ? num_steps : (rank + 1) * local_num_steps;
+
+    double local_pi = compute_partial_pi(start, end);
+
+    double global_pi = 0.0;
+    MPI_Reduce(&local_pi, &global_pi, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+        double pi = step * global_pi;
+        std::cout << "Calculated Pi: " << pi << std::endl;
+    }
+
+    MPI_Finalize();
+    return 0;
+}
